@@ -2,3 +2,4 @@ python-dotenv
 google.generativeai
 pillow
 pathlib
+streamlit_option_menu
