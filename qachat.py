@@ -11,7 +11,7 @@ from streamlit_option_menu import option_menu
 load_dotenv()
 
 current_dir = Path(__file__).parent if "__file__" in locals() else Path.cwd()
-doctorpic = current_dir / "glenn-profile-pic.png"
+doctorpic = current_dir / "healthbot-pic.png"
 
 #st.title("Login for using our healthbot")
 #add_auth(required=True)
@@ -120,7 +120,7 @@ if user_picked == 'Chat Doctor':
         st.image(doctorPic)
 
     with col2:
-        st.markdown('<div class="doctor-header"><h1>Dr. Glenn</h1></div><p>I specialize in skin and genital health</p>', unsafe_allow_html=True)
+        st.markdown('<div class="doctor-header"><h1>Dr. Healthbot</h1></div><p>I specialize in skin and genital health</p>', unsafe_allow_html=True)
 
     # Display the chat history
     for role, text in st.session_state.chat_history:
