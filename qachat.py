@@ -13,9 +13,6 @@ load_dotenv()
 current_dir = Path(__file__).parent if "__file__" in locals() else Path.cwd()
 doctorpic = current_dir / "healthbot-pic.png"
 
-#st.title("Login for using our healthbot")
-#add_auth(required=True)
-
 # Configure Streamlit page settings
 st.set_page_config(
     page_title="Chat with Doctor",
@@ -32,13 +29,11 @@ gen_ai.configure(api_key=GOOGLE_API_KEY)
 # Load Gemini-Pro model
 def gemini_pro():
     model = gen_ai.GenerativeModel('gemini-1.5-flash')
-    #model = gen_ai.GenerativeModel('gemini-1.5-pro-exp-0801')
     return model
 
 # Load Gemini Vision model
 def gemini_vision():
     model = gen_ai.GenerativeModel('gemini-1.5-flash')
-    #model = gen_ai.GenerativeModel('gemini-1.5-pro-exp-0801')
     return model
 
 # Load the knowledge base from a txt file
@@ -75,6 +70,25 @@ def gemini_vision_response(model, prompt, image, knowledge_base):
 # Load knowledge base
 knowledge_base = load_knowledge_base("knowledge.txt")
 
+# Initialize coin count
+if 'coins' not in st.session_state:
+    st.session_state['coins'] = 10  # Give 10 coins initially
+
+# Function to deduct coins and handle redirection when coins are 0
+def deduct_coin():
+    if st.session_state['coins'] > 0:
+        st.session_state['coins'] -= 1
+    if st.session_state['coins'] == 0:
+        st.warning("You have run out of coins! Redirecting in 5 seconds...")
+        st.markdown(f'<meta http-equiv="refresh" content="5; url=https://www.youtube.com/" />', unsafe_allow_html=True)
+        st.stop()  # Prevent further actions when coins are 0
+
+# Check if coins are already 0 and redirect user on page load
+if st.session_state['coins'] == 0:
+    st.markdown(f'<meta http-equiv="refresh" content="5; url=https://www.youtube.com/" />', unsafe_allow_html=True)
+    st.warning("You have run out of coins! Redirecting in 5 seconds...")
+    st.stop()
+
 # Sidebar menu for choosing between ChatBot and Image Captioning
 with st.sidebar:
     user_picked = option_menu(
@@ -85,13 +99,12 @@ with st.sidebar:
         default_index=0
     )
 
-# Role translation function for Streamlit
-def translate_role_for_streamlit(user_role):
-    return "assistant" if user_role == "model" else user_role
-
 # Doctor profile picture
 doctorPic = Image.open(doctorpic)
 doctorPic = doctorPic.resize((200, 200))
+
+# Display remaining coins
+st.sidebar.write(f"Remaining Coins: {st.session_state['coins']}")
 
 if user_picked == 'Chat Doctor':
     model = gemini_pro()
@@ -120,7 +133,14 @@ if user_picked == 'Chat Doctor':
         st.image(doctorPic)
 
     with col2:
-        st.markdown('<div class="doctor-header"><h1>Dr. Healthbot</h1></div><p>I specialize in skin and genital health</p>', unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class="doctor-header">
+                <h1>Dr. Healthbot</h1>
+            </div>
+            <p>I specialize in skin and genital health</p>
+            <p><b>Remaining Coins:</b> {st.session_state['coins']}</p>
+        """, unsafe_allow_html=True)
+
 
     # Display the chat history
     for role, text in st.session_state.chat_history:
@@ -130,6 +150,7 @@ if user_picked == 'Chat Doctor':
     # Input field for user's message
     user_prompt = st.chat_input("Ask Something...")
     if user_prompt:
+        deduct_coin()  # Deduct 1 coin for every prompt
         st.session_state.chat_history.append(("user", user_prompt))
         st.chat_message("user").markdown(user_prompt)
 
@@ -148,13 +169,20 @@ elif user_picked == 'Image Solutions':
         st.image(doctorPic)
 
     with column2:
-        st.markdown('<div class="doctor-header"><h1>Visualize Questions</h1></div><p>Now you dont have to explain, just send your photo</p>', unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class="doctor-header">
+                <h1>Visualize Questions</h1>
+            </div>
+            <p>Now you don't have to explain, just send your photo</p>
+            <p><b>Remaining Coins:</b> {st.session_state['coins']}</p>
+        """, unsafe_allow_html=True)
 
     image = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
 
     user_prompt = st.text_input("Enter the prompt for image captioning:")
 
     if st.button("Visualize") and image and user_prompt:
+        deduct_coin()  # Deduct 1 coin for image captioning
         load_image = Image.open(image)
 
         colLeft, colRight = st.columns(2)
