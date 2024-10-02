@@ -200,7 +200,7 @@ elif user_picked == 'Image Solutions':
             </div>
             <p>Now you don't have to explain, just send your photo</p>
             <p><b>Remaining Coins:</b> {st.session_state['coins']}</p>
-        """)
+        """, unsafe_allow_html=True)
 
     image = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
 
