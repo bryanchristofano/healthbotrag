@@ -89,13 +89,13 @@ if st.session_state['coins'] == 0:
     st.warning("You have run out of coins! Redirecting in 5 seconds...")
     st.stop()
 
-# Sidebar menu for choosing between ChatBot and Image Captioning
+# Sidebar menu for choosing between Manual Guide, ChatBot, and Image Captioning
 with st.sidebar:
     user_picked = option_menu(
         "HealthBot",
-        ["Chat Doctor", "Image Solutions"],
+        ["Manual Guide", "Chat Doctor", "Image Solutions"],
         menu_icon="robot",
-        icons=["chat-dots-fill", "image-fill"],
+        icons=["info-circle", "chat-dots-fill", "image-fill"],
         default_index=0
     )
 
@@ -106,7 +106,33 @@ doctorPic = doctorPic.resize((200, 200))
 # Display remaining coins
 st.sidebar.write(f"Remaining Coins: {st.session_state['coins']}")
 
-if user_picked == 'Chat Doctor':
+if user_picked == 'Manual Guide':
+    st.title("Manual Guide for HealthBot")
+    
+    video_file = open("healthbot-manual.mp4", "rb")
+    video_bytes = video_file.read()
+
+    st.video(video_bytes)
+
+    st.header("How to Use Chat Doctor")
+    st.write("""
+        1. Go to the 'Chat Doctor' section from the sidebar.
+        2. Enter your question in the chat box.
+        3. Each question deducts 1 coin. Ensure you have sufficient coins.
+        4. Your question will be answered based on the knowledge base of medical information.
+        5. When your coins run out, you will be redirected to the subscription page.
+    """)
+
+    st.header("How to Use Image Solutions")
+    st.write("""
+        1. Go to the 'Image Solutions' section from the sidebar.
+        2. Upload an image related to your health query.
+        3. Enter a prompt describing what you want to know about the image.
+        4. The system will generate a response using the Gemini Vision model.
+        5. Each image submission deducts 1 coin.
+    """)
+
+elif user_picked == 'Chat Doctor':
     model = gemini_pro()
 
     # Initialize chat session if not already present
@@ -141,7 +167,6 @@ if user_picked == 'Chat Doctor':
             <p><b>Remaining Coins:</b> {st.session_state['coins']}</p>
         """, unsafe_allow_html=True)
 
-
     # Display the chat history
     for role, text in st.session_state.chat_history:
         with st.chat_message(role):
@@ -175,7 +200,7 @@ elif user_picked == 'Image Solutions':
             </div>
             <p>Now you don't have to explain, just send your photo</p>
             <p><b>Remaining Coins:</b> {st.session_state['coins']}</p>
-        """, unsafe_allow_html=True)
+        """)
 
     image = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
 
