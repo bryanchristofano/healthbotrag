@@ -1,4 +1,5 @@
 import os
+import fitz  # PyMuPDF
 import streamlit as st
 from dotenv import load_dotenv
 import google.generativeai as gen_ai
@@ -36,15 +37,19 @@ def gemini_vision():
     model = gen_ai.GenerativeModel('gemini-1.5-flash')
     return model
 
-# Load the knowledge base from a txt file
-def load_knowledge_base(file_path):
-    summaries = []
-    with open(file_path, 'r', encoding='utf-8') as file:
-        for line in file:
-            line = line.strip()
-            if line:
-                summaries.append(line)
-    return summaries
+# Load PDFs from folder
+def load_pdfs_from_folder(folder_path):
+    knowledge_base = []
+    folder = Path(folder_path)
+    pdf_files = list(folder.glob("*.pdf"))
+    
+    for pdf_file in pdf_files:
+        doc = fitz.open(pdf_file)
+        text = "\n".join([page.get_text("text") for page in doc])
+        knowledge_base.append(text)
+        doc.close()
+    
+    return knowledge_base
 
 # Generate response using the Gemini model and knowledge base
 def generate_response(input_text, knowledge_base):
@@ -67,8 +72,8 @@ def gemini_vision_response(model, prompt, image, knowledge_base):
     response = model.generate_content([full_prompt, image])
     return response.text
 
-# Load knowledge base
-knowledge_base = load_knowledge_base("knowledge.txt")
+# Load knowledge base from PDFs
+knowledge_base = load_pdfs_from_folder("docs")
 
 # Initialize coin count
 if 'coins' not in st.session_state:
@@ -103,6 +108,7 @@ with st.sidebar:
 doctorPic = Image.open(doctorpic)
 doctorPic = doctorPic.resize((200, 200))
 
+
 # Display remaining coins
 st.sidebar.write(f"Remaining Coins: {st.session_state['coins']}")
 
@@ -135,7 +141,7 @@ if user_picked == 'Manual Guide':
 elif user_picked == 'Chat Doctor':
     model = gemini_pro()
 
-    # Initialize chat session if not already present
+# Initialize chat session if not already present
     if "chat_session" not in st.session_state:
         st.session_state.chat_session = model.start_chat(history=[])
 
