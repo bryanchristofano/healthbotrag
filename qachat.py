@@ -55,7 +55,7 @@ def load_pdfs_from_folder(folder_path):
 def generate_response(input_text, knowledge_base):
     knowledge_summary = " ".join(knowledge_base)
     full_prompt = f"{knowledge_summary}\nUser: {input_text}\nAssistant:"
-    if input_text.lower() in ["siapa namamu", "who are you", "siapa kamu", "kamu siapa", "siapa anda"]:
+    if input_text.lower() in ["siapa namamu", "who are you", "siapa kamu", "kamu siapa", "siapa anda", "siapa kamu?", "siapa namamu?", "who are you?", "kamu siapa?", "siapa anda?", "kamu adalah apa", "kamu adalah apa?"]:
         return "Saya adalah HealthBot buatan Glenn dan Bryan berdasarkan knowledge base yang diberikan oleh mereka. Terimakasih Glenn dan Bryan."
     response = get_gemini_response(full_prompt)
     return response
