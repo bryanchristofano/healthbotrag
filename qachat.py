@@ -66,10 +66,6 @@ def generate_response(input_text, knowledge_base, chat_history):
 
     response = get_gemini_response(full_prompt)
     
-    # Simpan pertanyaan dan jawaban ke dalam chat history
-    chat_history.append(("user", input_text))
-    chat_history.append(("assistant", response))
-    
     return response
 
 
