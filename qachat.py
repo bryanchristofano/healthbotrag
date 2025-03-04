@@ -51,24 +51,27 @@ def load_pdfs_from_folder(folder_path):
     
     return knowledge_base
 
-# Generate response using the Gemini model and knowledge base
+# Generate response using the Gemini model and chat history
 def generate_response(input_text, knowledge_base, chat_history):
     knowledge_summary = " ".join(knowledge_base)
 
-    # Cek apakah chat history kosong
-    if chat_history:
-        history_text = "\n".join([f"{role}: {text}" for role, text in chat_history])
-    else:
-        history_text = "Tidak ada percakapan sebelumnya."
+    # Format riwayat percakapan untuk Gemini
+    history_text = "\n".join([f"{role}: {text}" for role, text in chat_history])
 
-    # Gabungkan knowledge base dan chat history
+    # Gabungkan knowledge base dan riwayat percakapan ke dalam prompt
     full_prompt = f"{knowledge_summary}\n\nRiwayat Percakapan:\n{history_text}\n\nUser: {input_text}\nAssistant:"
 
     if input_text.lower() in ["siapa namamu", "who are you", "siapa kamu", "kamu siapa", "siapa anda", "siapa kamu?", "siapa namamu?", "who are you?", "kamu siapa?", "siapa anda?", "kamu adalah apa", "kamu adalah apa?"]:
         return "Saya adalah HealthBot buatan Glenn dan Bryan berdasarkan knowledge base yang diberikan oleh mereka. Terima kasih Glenn dan Bryan."
 
     response = get_gemini_response(full_prompt)
+    
+    # Simpan pertanyaan dan jawaban ke dalam chat history
+    chat_history.append(("user", input_text))
+    chat_history.append(("assistant", response))
+    
     return response
+
 
 
 # Function to get response from Gemini
