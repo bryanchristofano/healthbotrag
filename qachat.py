@@ -186,7 +186,8 @@ elif user_picked == 'Chat Doctor':
         st.session_state.chat_history.append(("user", user_prompt))
         st.chat_message("user").markdown(user_prompt)
 
-        gemini_response = generate_response(user_prompt, knowledge_base)
+        gemini_response = generate_response(user_prompt, knowledge_base, st.session_state.chat_history)
+
 
         st.session_state.chat_history.append(("assistant", gemini_response))
 
