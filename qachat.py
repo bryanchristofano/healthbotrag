@@ -32,6 +32,10 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 # Set up Google Gemini-Pro AI model
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 
+# Ollama configuration
+OLLAMA_BASE_URL = "http://localhost:11434"  # Default Ollama URL
+DEEPSEEK_MODEL = "deepseek-r1:32b"
+
 # Initialize Firebase connection using REST API
 import requests
 
@@ -51,6 +55,21 @@ def initialize_firebase():
         st.error(f"Error connecting to Firebase: {e}")
         return False
 
+# Test Ollama connection
+@st.cache_resource
+def test_ollama_connection():
+    """Test connection to Ollama server"""
+    try:
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+        if response.status_code == 200:
+            models = response.json().get('models', [])
+            model_names = [model['name'] for model in models]
+            return DEEPSEEK_MODEL in model_names, model_names
+        return False, []
+    except Exception as e:
+        st.error(f"Error connecting to Ollama: {e}")
+        return False, []
+
 # Load Gemini-Pro model
 def gemini_pro():
     model = gen_ai.GenerativeModel('gemini-1.5-flash')
@@ -60,6 +79,29 @@ def gemini_pro():
 def gemini_vision():
     model = gen_ai.GenerativeModel('gemini-1.5-flash')
     return model
+
+# Ollama API call
+def call_ollama(prompt, model_name=DEEPSEEK_MODEL):
+    """Make API call to Ollama"""
+    try:
+        url = f"{OLLAMA_BASE_URL}/api/generate"
+        data = {
+            "model": model_name,
+            "prompt": prompt,
+            "stream": False
+        }
+        
+        response = requests.post(url, json=data, timeout=3600)
+        
+        if response.status_code == 200:
+            return response.json().get('response', 'No response received')
+        else:
+            return f"Error: HTTP {response.status_code}"
+            
+    except requests.exceptions.Timeout:
+        return "Error: Request timeout. The model might be loading or busy."
+    except Exception as e:
+        return f"Error calling Ollama: {str(e)}"
 
 # Load PDFs from folder
 def load_pdfs_from_folder(folder_path):
@@ -77,7 +119,7 @@ def load_pdfs_from_folder(folder_path):
 
 # PERBAIKAN UTAMA: Fungsi untuk membaca struktur JSON dengan multi-person
 @st.cache_data(ttl=60)  # Cache for 1 minute
-def get_bmp_history():
+def get_bpm_history():
     """Fetch BPM history from Firebase using REST API - supports multi-person structure"""
     try:
         # Gunakan REST API konsisten dengan initialize_firebase()
@@ -85,22 +127,22 @@ def get_bmp_history():
         response = requests.get(url, timeout=10)
         
         if response.status_code == 200:
-            bmp_data = response.json()
+            bpm_data = response.json()
             
-            if bmp_data:
+            if bpm_data:
                 # Handle struktur JSON baru dengan multi-person
-                if isinstance(bmp_data, dict):
+                if isinstance(bpm_data, dict):
                     # Check if this is the new structure with person names as keys
-                    person_keys = list(bmp_data.keys())
-                    if person_keys and isinstance(bmp_data[person_keys[0]], dict):
+                    person_keys = list(bpm_data.keys())
+                    if person_keys and isinstance(bpm_data[person_keys[0]], dict):
                         # New structure: {"glenn": {"timestamp": bpm}, "bryan": {...}}
-                        return parse_multi_person_bmp_data(bmp_data)
+                        return parse_multi_person_bpm_data(bpm_data)
                     else:
-                        # Old structure: {"timestamp": bmp}
-                        return parse_single_bmp_data(bmp_data)
-                elif isinstance(bmp_data, list):
+                        # Old structure: {"timestamp": bpm}
+                        return parse_single_bpm_data(bpm_data)
+                elif isinstance(bpm_data, list):
                     # Array structure: [{"timestamp": "...", "bpm": ...}]
-                    return parse_array_bmp_data(bmp_data)
+                    return parse_array_bpm_data(bpm_data)
             
             return []
         else:
@@ -117,20 +159,20 @@ def get_bmp_history():
         st.error(f"Error unexpected saat mengambil data BPM: {e}")
         return []
 
-def parse_multi_person_bmp_data(bmp_data):
+def parse_multi_person_bpm_data(bpm_data):
     """Parse BPM data with multi-person structure"""
-    bmp_list = []
+    bpm_list = []
     
-    for person_name, person_data in bmp_data.items():
+    for person_name, person_data in bpm_data.items():
         if isinstance(person_data, dict):
-            for timestamp, bmp_value in person_data.items():
+            for timestamp, bpm_value in person_data.items():
                 try:
                     # Parse timestamp format: YYYY-MM-DD_HH:MM:SS
                     dt = datetime.strptime(timestamp, "%Y-%m-%d_%H:%M:%S")
-                    bmp_list.append({
+                    bpm_list.append({
                         'timestamp': timestamp,
                         'datetime': dt,
-                        'bpm': bmp_value,
+                        'bpm': bpm_value,
                         'person': person_name
                     })
                 except ValueError as e:
@@ -141,36 +183,36 @@ def parse_multi_person_bmp_data(bmp_data):
                     continue
     
     # Sort by datetime
-    bmp_list.sort(key=lambda x: x['datetime'])
-    return bmp_list
+    bpm_list.sort(key=lambda x: x['datetime'])
+    return bpm_list
 
-def parse_single_bmp_data(bmp_data):
+def parse_single_bpm_data(bpm_data):
     """Parse BPM data with single structure (legacy)"""
-    bmp_list = []
-    for timestamp, bmp_value in bmp_data.items():
+    bpm_list = []
+    for timestamp, bpm_value in bpm_data.items():
         try:
             # Parse timestamp format: YYYY-MM-DD_HH:MM:SS
             dt = datetime.strptime(timestamp, "%Y-%m-%d_%H:%M:%S")
-            bmp_list.append({
+            bpm_list.append({
                 'timestamp': timestamp,
                 'datetime': dt,
-                'bpm': bmp_value,
+                'bpm': bpm_value,
                 'person': 'unknown'
             })
         except ValueError:
             continue
     
-    bmp_list.sort(key=lambda x: x['datetime'])
-    return bmp_list
+    bpm_list.sort(key=lambda x: x['datetime'])
+    return bpm_list
 
-def parse_array_bmp_data(bmp_data):
+def parse_array_bpm_data(bpm_data):
     """Parse BPM data with array structure"""
-    bmp_list = []
-    for item in bmp_data:
+    bpm_list = []
+    for item in bpm_data:
         try:
             # Format timestamp: "2025-05-20 15:56:14"
             dt = datetime.strptime(item['timestamp'], "%Y-%m-%d %H:%M:%S")
-            bmp_list.append({
+            bpm_list.append({
                 'timestamp': item['timestamp'],
                 'datetime': dt,
                 'bpm': item['bpm'],
@@ -180,34 +222,34 @@ def parse_array_bmp_data(bmp_data):
             print(f"Skipping invalid data: {item}, Error: {e}")
             continue
     
-    bmp_list.sort(key=lambda x: x['datetime'])
-    return bmp_list
+    bpm_list.sort(key=lambda x: x['datetime'])
+    return bpm_list
 
 # Analyze BPM data - DIPERBAIKI untuk mendukung multi-person
-def analyze_bmp_data(bmp_data, selected_person=None):
+def analyze_bpm_data(bpm_data, selected_person=None):
     """Analyze BPM data and generate insights - supports multi-person analysis"""
-    if not bmp_data:
+    if not bpm_data:
         return "Tidak ada data BPM yang tersedia untuk dianalisis."
     
     # Filter data berdasarkan person jika dipilih
     if selected_person and selected_person != 'all':
-        filtered_data = [item for item in bmp_data if item.get('person') == selected_person]
+        filtered_data = [item for item in bpm_data if item.get('person') == selected_person]
         if not filtered_data:
             return f"Tidak ada data BPM untuk {selected_person}."
         analysis_data = filtered_data
         person_text = f" untuk {selected_person.title()}"
     else:
-        analysis_data = bmp_data
-        person_text = " (semua orang)" if len(set(item.get('person', 'unknown') for item in bmp_data)) > 1 else ""
+        analysis_data = bpm_data
+        person_text = " (semua orang)" if len(set(item.get('person', 'unknown') for item in bpm_data)) > 1 else ""
     
-    bmp_values = [item['bpm'] for item in analysis_data]
+    bpm_values = [item['bpm'] for item in analysis_data]
     timestamps = [item['timestamp'] for item in analysis_data]
     
     # Basic statistics
-    avg_bpm = sum(bmp_values) / len(bmp_values)
-    max_bpm = max(bmp_values)
-    min_bpm = min(bmp_values)
-    latest_bmp = bmp_values[-1] if bmp_values else 0
+    avg_bpm = sum(bpm_values) / len(bpm_values)
+    max_bpm = max(bpm_values)
+    min_bpm = min(bpm_values)
+    latest_bpm = bpm_values[-1] if bpm_values else 0
     
     # Health assessment
     def assess_bpm(bpm):
@@ -221,7 +263,7 @@ def analyze_bmp_data(bmp_data, selected_person=None):
             return "Takikardia (detak jantung cepat)"
     
     # Get unique persons for summary
-    persons = list(set(item.get('person', 'unknown') for item in bmp_data))
+    persons = list(set(item.get('person', 'unknown') for item in bpm_data))
     
     analysis = f"""
     ANALISIS DATA BPM{person_text}:
@@ -231,7 +273,7 @@ def analyze_bmp_data(bmp_data, selected_person=None):
     • BPM rata-rata: {avg_bpm:.1f} bpm
     • BPM tertinggi: {max_bpm} bpm
     • BPM terendah: {min_bpm} bpm
-    • BPM terakhir: {latest_bmp} bpm
+    • BPM terakhir: {latest_bpm} bpm
     """
     
     if len(persons) > 1 and selected_person == 'all':
@@ -245,15 +287,15 @@ def analyze_bmp_data(bmp_data, selected_person=None):
     
     ❤️ PENILAIAN KESEHATAN:
     • Status BPM rata-rata: {assess_bpm(avg_bpm)}
-    • Status BPM terakhir: {assess_bpm(latest_bmp)}
+    • Status BPM terakhir: {assess_bpm(latest_bpm)}
     
     📈 TREN:
     """
     
     # Trend analysis
-    if len(bmp_values) >= 3:
-        recent_avg = sum(bmp_values[-3:]) / 3
-        older_avg = sum(bmp_values[:3]) / 3 if len(bmp_values) >= 6 else avg_bpm
+    if len(bpm_values) >= 3:
+        recent_avg = sum(bpm_values[-3:]) / 3
+        older_avg = sum(bpm_values[:3]) / 3 if len(bpm_values) >= 6 else avg_bpm
         
         if recent_avg > older_avg + 5:
             analysis += "• Tren meningkat - BPM cenderung naik dalam pengukuran terbaru\n"
@@ -281,28 +323,28 @@ def analyze_bmp_data(bmp_data, selected_person=None):
     if len(persons) > 1 and selected_person in ['all', None]:
         analysis += "\n\n👥 RINGKASAN PER ORANG:\n"
         for person in persons:
-            person_data = [item for item in bmp_data if item.get('person') == person]
+            person_data = [item for item in bpm_data if item.get('person') == person]
             if person_data:
                 person_avg = sum(item['bpm'] for item in person_data) / len(person_data)
                 analysis += f"• {person.title()}: {len(person_data)} data, rata-rata {person_avg:.1f} bpm ({assess_bpm(person_avg)})\n"
     
     return analysis
 
-# Generate response using the Gemini model and chat history - DIPERBAIKI
-def generate_response(input_text, knowledge_base, chat_history, bmp_data=None):
+# Generate response using the selected model - MODIFIED for model selection
+def generate_response(input_text, knowledge_base, chat_history, bpm_data=None, selected_model="gemini"):
     knowledge_summary = " ".join(knowledge_base)
     
     # Check if user asks about BPM history
-    bmp_keywords = ['bpm', 'detak jantung', 'heart rate', 'jantung', 'beat', 'pulse']
+    bpm_keywords = ['bpm', 'detak jantung', 'heart rate', 'jantung', 'beat', 'pulse']
     history_keywords = ['history', 'histori', 'riwayat', 'data', 'analisis', 'analysis']
     
-    is_bmp_query = any(keyword in input_text.lower() for keyword in bmp_keywords)
+    is_bpm_query = any(keyword in input_text.lower() for keyword in bpm_keywords)
     is_history_query = any(keyword in input_text.lower() for keyword in history_keywords)
     
-    bmp_context = ""
-    if (is_bmp_query or is_history_query) and bmp_data:
+    bpm_context = ""
+    if (is_bpm_query or is_history_query) and bpm_data:
         # Check if user asks for specific person
-        persons = list(set(item.get('person', 'unknown') for item in bmp_data))
+        persons = list(set(item.get('person', 'unknown') for item in bpm_data))
         selected_person = None
         
         for person in persons:
@@ -310,24 +352,31 @@ def generate_response(input_text, knowledge_base, chat_history, bmp_data=None):
                 selected_person = person
                 break
         
-        bmp_analysis = analyze_bmp_data(bmp_data, selected_person)
-        bmp_context = f"\n\nDATA BPM PASIEN:\n{bmp_analysis}\n"
+        bpm_analysis = analyze_bpm_data(bpm_data, selected_person)
+        bpm_context = f"\n\nDATA BPM PASIEN:\n{bpm_analysis}\n"
 
-    # Format riwayat percakapan untuk Gemini
+    # Format riwayat percakapan
     history_text = "\n".join([f"{role}: {text}" for role, text in chat_history])
 
-    # Gabungkan knowledge base, BPM data dan riwayat percakapan ke dalam prompt
-    full_prompt = f"{knowledge_summary}{bmp_context}\n\nRiwayat Percakapan:\n{history_text}\n\nUser: {input_text}\nAssistant:"
+    # Gabungkan knowledge base, bpm data dan riwayat percakapan ke dalam prompt
+    full_prompt = f"{knowledge_summary}{bpm_context}\n\nRiwayat Percakapan:\n{history_text}\n\nUser: {input_text}\nAssistant:"
 
+    # Handle identity questions
     if input_text.lower() in ["siapa namamu", "who are you", "siapa kamu", "kamu siapa", "siapa anda", "siapa kamu?", "siapa namamu?", "who are you?", "kamu siapa?", "siapa anda?", "kamu adalah apa", "kamu adalah apa?"]:
-        return "Saya adalah HealthBot buatan Glenn dan Bryan berdasarkan knowledge base yang diberikan oleh mereka. Saya juga dapat menganalisis data BPM dari perangkat monitoring multi-user Anda. Terima kasih Glenn dan Bryan."
+        model_info = f" menggunakan model {selected_model.upper()}" if selected_model == "deepseek" else ""
+        return f"Saya adalah HealthBot buatan Glenn dan Bryan berdasarkan knowledge base yang diberikan oleh mereka{model_info}. Saya juga dapat menganalisis data BPM dari perangkat monitoring multi-user Anda. Terima kasih Glenn dan Bryan."
 
-    response = get_gemini_response(full_prompt)
-    
-    return response
+    # Generate response based on selected model
+    if selected_model == "gemini":
+        return get_gemini_response(full_prompt)
+    elif selected_model == "deepseek":
+        return call_ollama(full_prompt)
+    else:
+        return "Error: Model tidak dikenali."
 
 # Function to get response from Gemini
 def get_gemini_response(question):
+    model = gemini_pro()
     response = model.generate_content(question)
     return response.text
 
@@ -339,21 +388,21 @@ def gemini_vision_response(model, prompt, image, knowledge_base):
     response = model.generate_content([full_prompt, image])
     return response.text
 
-# Create BMP visualization - DIPERBAIKI untuk multi-person
-def create_bmp_chart(bmp_data, selected_person=None):
+# Create bpm visualization - DIPERBAIKI untuk multi-person
+def create_bpm_chart(bpm_data, selected_person=None):
     """Create BPM trend chart - supports multi-person visualization"""
-    if not bmp_data:
+    if not bpm_data:
         return None
     
     # Filter data jika person dipilih
     if selected_person and selected_person != 'all':
-        filtered_data = [item for item in bmp_data if item.get('person') == selected_person]
+        filtered_data = [item for item in bpm_data if item.get('person') == selected_person]
         if not filtered_data:
             return None
         plot_data = filtered_data
         title_suffix = f" - {selected_person.title()}"
     else:
-        plot_data = bmp_data
+        plot_data = bpm_data
         title_suffix = ""
     
     df = pd.DataFrame(plot_data)
@@ -408,9 +457,16 @@ knowledge_base = load_pdfs_from_folder("docs")
 # Initialize Firebase
 firebase_initialized = initialize_firebase()
 
+# Test Ollama connection
+ollama_available, available_models = test_ollama_connection()
+
 # Initialize coin count
 if 'coins' not in st.session_state:
     st.session_state['coins'] = 10  # Give 10 coins initially
+
+# Initialize model selection
+if 'selected_model' not in st.session_state:
+    st.session_state['selected_model'] = 'gemini'
 
 # Function to deduct coins and handle redirection when coins are 0
 def deduct_coin():
@@ -441,12 +497,40 @@ with st.sidebar:
 doctorPic = Image.open(doctorpic)
 doctorPic = doctorPic.resize((200, 200))
 
-# Display remaining coins and Firebase status
+# Display remaining coins, Firebase status, and model selection
 st.sidebar.write(f"Remaining Coins: {st.session_state['coins']}")
+
+# Model Selection in Sidebar
+st.sidebar.subheader("🤖 AI Model Selection")
+if ollama_available:
+    selected_model = st.sidebar.selectbox(
+        "Choose AI Model:",
+        options=["gemini", "deepseek"],
+        format_func=lambda x: "Google Gemini 1.5 Flash" if x == "gemini" else "Deepseek-R1 32B (Local)",
+        index=0 if st.session_state['selected_model'] == 'gemini' else 1,
+        key="model_selector"
+    )
+    st.session_state['selected_model'] = selected_model
+    
+    if selected_model == "deepseek":
+        st.sidebar.success("🟢 Deepseek-R1 Available")
+    else:
+        st.sidebar.info("🔵 Using Gemini")
+else:
+    st.sidebar.error("🔴 Deepseek-R1 Unavailable")
+    st.sidebar.write("Only Gemini model available")
+    st.session_state['selected_model'] = 'gemini'
+
 if firebase_initialized:
     st.sidebar.success("🟢 Firebase Connected")
 else:
     st.sidebar.error("🔴 Firebase Disconnected")
+
+# Display available Ollama models for debugging
+# if ollama_available and available_models:
+#     with st.sidebar.expander("Available Ollama Models"):
+#         for model in available_models:
+#             st.write(f"• {model}")
 
 if user_picked == 'Manual Guide':
     st.title("Manual Guide for HealthBot")
@@ -459,12 +543,23 @@ if user_picked == 'Manual Guide':
     st.header("How to Use Chat Doctor")
     st.write("""
         1. Go to the 'Chat Doctor' section from the sidebar.
-        2. Enter your question in the chat box.
-        3. Each question deducts 1 coin. Ensure you have sufficient coins.
-        4. Your question will be answered based on the knowledge base of medical information.
-        5. Ask about BPM history to get analysis of your heart rate data.
-        6. You can ask for specific person's BPM data (e.g., "show glenn's BPM data").
-        7. When your coins run out, you will be redirected to the subscription page.
+        2. **Select your preferred AI model**: Choose between Google Gemini or Deepseek-R1 32B (local).
+        3. Enter your question in the chat box.
+        4. Each question deducts 1 coin. Ensure you have sufficient coins.
+        5. Your question will be answered based on the knowledge base of medical information.
+        6. Ask about BPM history to get analysis of your heart rate data.
+        7. You can ask for specific person's BPM data (e.g., "show glenn's BPM data").
+        8. When your coins run out, you will be redirected to the subscription page.
+    """)
+
+    st.header("AI Model Options")
+    st.write("""
+        **Google Gemini 1.5 Flash**: Fast, cloud-based AI model with vision capabilities.
+        
+        **Deepseek-R1 32B (Local)**: Powerful reasoning model running locally via Ollama.
+        - Better for complex reasoning tasks
+        - Runs on your local machine
+        - Requires Ollama installation
     """)
 
     st.header("How to Use Image Solutions")
@@ -474,6 +569,7 @@ if user_picked == 'Manual Guide':
         3. Enter a prompt describing what you want to know about the image.
         4. The system will generate a response using the Gemini Vision model.
         5. Each image submission deducts 1 coin.
+        6. Note: Image analysis currently only available with Gemini model.
     """)
     
     st.header("How to Use BPM Monitor")
@@ -489,7 +585,7 @@ elif user_picked == 'Chat Doctor':
     model = gemini_pro()
 
     # Get BPM data for context
-    bmp_data = get_bmp_history() if firebase_initialized else []
+    bpm_data = get_bpm_history() if firebase_initialized else []
 
     # Initialize chat session if not already present
     if "chat_session" not in st.session_state:
@@ -516,16 +612,21 @@ elif user_picked == 'Chat Doctor':
 
     with col2:
         # Get unique persons from BPM data
-        persons = list(set(item.get('person', 'unknown') for item in bmp_data)) if bmp_data else []
+        persons = list(set(item.get('person', 'unknown') for item in bpm_data)) if bpm_data else []
         persons_text = f" ({', '.join(persons)})" if len(persons) > 1 else ""
+        
+        # Model status display
+        model_display = "Google Gemini 1.5 Flash" if st.session_state['selected_model'] == 'gemini' else "Deepseek-R1 32B"
+        model_status = "🔵" if st.session_state['selected_model'] == 'gemini' else "🟢"
         
         st.markdown(f"""
             <div class="doctor-header">
                 <h1>Dr. Healthbot</h1>
             </div>
             <p>I specialize in skin, genital health, and multi-user BPM analysis</p>
+            <p><b>Current Model:</b> {model_status} {model_display}</p>
             <p><b>Remaining Coins:</b> {st.session_state['coins']}</p>
-            <p><b>BPM Data:</b> {len(bmp_data)} records available{persons_text}</p>
+            <p><b>BPM Data:</b> {len(bpm_data)} records available{persons_text}</p>
         """, unsafe_allow_html=True)
 
     # Display the chat history
@@ -540,7 +641,24 @@ elif user_picked == 'Chat Doctor':
         st.session_state.chat_history.append(("user", user_prompt))
         st.chat_message("user").markdown(user_prompt)
 
-        gemini_response = generate_response(user_prompt, knowledge_base, st.session_state.chat_history, bmp_data)
+        # Show loading spinner for Deepseek model
+        if st.session_state['selected_model'] == 'deepseek':
+            with st.spinner("Deepseek-R1 is thinking... This may take a moment."):
+                gemini_response = generate_response(
+                    user_prompt, 
+                    knowledge_base, 
+                    st.session_state.chat_history, 
+                    bpm_data, 
+                    st.session_state['selected_model']
+                )
+        else:
+            gemini_response = generate_response(
+                user_prompt, 
+                knowledge_base, 
+                st.session_state.chat_history, 
+                bpm_data, 
+                st.session_state['selected_model']
+            )
 
         st.session_state.chat_history.append(("assistant", gemini_response))
 
@@ -555,18 +673,30 @@ elif user_picked == 'Image Solutions':
         st.image(doctorPic)
 
     with column2:
+        # Model display information
+        model_display = "Google Gemini Vision" if st.session_state['selected_model'] == 'gemini' else "Deepseek-R1 32B"
+        model_status = "🔵" if st.session_state['selected_model'] == 'gemini' else "🟢"
+        
         st.markdown(f"""
             <div class="doctor-header">
                 <h1>Visualize Questions</h1>
             </div>
             <p>Now you don't have to explain, just send your photo</p>
+            <p><b>Current Model:</b> {model_status} {model_display}</p>
             <p><b>Remaining Coins:</b> {st.session_state['coins']}</p>
         """, unsafe_allow_html=True)
+        
+        # Warning for Deepseek model
+        if st.session_state['selected_model'] == 'deepseek':
+            st.warning("⚠️ Note: Deepseek-R1 32B can analyze images, but performance may vary compared to Gemini Vision.")
 
+    # File uploader
     image = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
 
+    # Text input for prompt
     user_prompt = st.text_input("Enter the prompt for image captioning:")
 
+    # Analyze button and processing
     if st.button("Visualize") and image and user_prompt:
         deduct_coin()  # Deduct 1 coin for image captioning
         load_image = Image.open(image)
@@ -576,10 +706,73 @@ elif user_picked == 'Image Solutions':
         with colLeft:
             st.image(load_image.resize((800, 500)))
 
-        caption_response = gemini_vision_response(model, user_prompt, load_image, knowledge_base)
-
         with colRight:
-            st.info(caption_response)
+            if st.session_state['selected_model'] == 'gemini':
+                # Use Gemini Vision
+                caption_response = gemini_vision_response(model, user_prompt, load_image, knowledge_base)
+                st.info(caption_response)
+                
+            elif st.session_state['selected_model'] == 'deepseek':
+                # Use Deepseek with image analysis
+                with st.spinner("Deepseek-R1 is analyzing the image... This may take a moment."):
+                    try:
+                        # Convert image to base64 for Deepseek
+                        import base64
+                        import io
+                        
+                        # Resize image to reduce processing time
+                        resized_image = load_image.resize((512, 512))
+                        
+                        # Convert to base64
+                        buffered = io.BytesIO()
+                        resized_image.save(buffered, format="JPEG")
+                        img_base64 = base64.b64encode(buffered.getvalue()).decode()
+                        
+                        # Create prompt for Deepseek with image context
+                        knowledge_summary = " ".join(knowledge_base)
+                        deepseek_prompt = f"""
+{knowledge_summary}
+
+You are a medical AI assistant analyzing an uploaded image. The user has provided this prompt: "{user_prompt}"
+
+Please analyze the image and provide a detailed medical assessment based on:
+1. What you can observe in the image
+2. Relevant medical knowledge from the knowledge base
+3. Appropriate recommendations or concerns
+
+Image is provided as base64 data. Please provide a comprehensive response about what you observe and any medical insights.
+
+User's specific question: {user_prompt}
+"""
+                        
+                        # Call Ollama with the prompt (Note: Deepseek-R1 might not have native vision, so we describe the analysis approach)
+                        enhanced_prompt = f"""
+{deepseek_prompt}
+
+Since this is an image analysis request, please provide guidance on what medical aspects should be considered when examining such images, and general advice related to the user's query: "{user_prompt}"
+
+Focus on providing medical insights that would be relevant to someone asking about: {user_prompt}
+"""
+                        
+                        deepseek_response = call_ollama(enhanced_prompt)
+                        
+                        st.info(f"**Deepseek-R1 Analysis:**\n\n{deepseek_response}")
+                        
+                        # Add note about image analysis limitation
+                        st.caption("Note: Deepseek-R1 provides contextual medical guidance. For detailed image analysis, consider using Gemini Vision model.")
+                        
+                    except Exception as e:
+                        st.error(f"Error with Deepseek image analysis: {str(e)}")
+                        st.info("Falling back to text-based medical guidance...")
+                        
+                        # Fallback to text-based response
+                        fallback_prompt = f"""
+Based on the medical knowledge base, please provide guidance for someone asking about: "{user_prompt}"
+
+Provide relevant medical information, potential concerns to look for, and recommendations for medical consultation if needed.
+"""
+                        fallback_response = call_ollama(fallback_prompt)
+                        st.info(f"**Medical Guidance:**\n\n{fallback_response}")
 
 elif user_picked == 'BPM Monitor':
     st.title("❤️ BPM Monitor Dashboard - Multi User")
@@ -589,13 +782,13 @@ elif user_picked == 'BPM Monitor':
         st.stop()
     
     # Get BPM data
-    bmp_data = get_bmp_history()
+    bpm_data = get_bpm_history()
     
-    if not bmp_data:
+    if not bpm_data:
         st.warning("No BPM data available. Make sure your ESP32 devices are connected and sending data.")
     else:
         # Get unique persons
-        persons = list(set(item.get('person', 'unknown') for item in bmp_data))
+        persons = list(set(item.get('person', 'unknown') for item in bpm_data))
         
         # Person selector
         if len(persons) > 1:
@@ -609,20 +802,20 @@ elif user_picked == 'BPM Monitor':
         
         # Filter data based on selection
         if selected_person == 'all':
-            display_data = bmp_data
+            display_data = bpm_data
         else:
-            display_data = [item for item in bmp_data if item.get('person') == selected_person]
+            display_data = [item for item in bpm_data if item.get('person') == selected_person]
         
         if not display_data:
             st.warning(f"No data available for {selected_person}")
             st.stop()
         
         # Current BPM display
-        latest_bmp = display_data[-1]['bpm'] if display_data else 0
+        latest_bpm = display_data[-1]['bpm'] if display_data else 0
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric("Current BPM", f"{latest_bmp} bpm")
+            st.metric("Current BPM", f"{latest_bpm} bpm")
         
         with col2:
             avg_bpm = sum(item['bpm'] for item in display_data) / len(display_data)
@@ -637,7 +830,7 @@ elif user_picked == 'BPM Monitor':
             summary_cols = st.columns(len(persons))
             
             for i, person in enumerate(persons):
-                person_data = [item for item in bmp_data if item.get('person') == person]
+                person_data = [item for item in bpm_data if item.get('person') == person]
                 if person_data:
                     person_avg = sum(item['bpm'] for item in person_data) / len(person_data)
                     with summary_cols[i]:
@@ -649,30 +842,81 @@ elif user_picked == 'BPM Monitor':
         
         # BPM Chart
         st.subheader("📈 BPM Trend")
-        chart = create_bmp_chart(bmp_data, selected_person)
+        chart = create_bpm_chart(bpm_data, selected_person)
         if chart:
             st.plotly_chart(chart, use_container_width=True)
         
-        # Analysis
+        # Analysis with model selection for BPM insights
         st.subheader("🔍 BPM Analysis")
-        analysis = analyze_bmp_data(bmp_data, selected_person)
-        st.text_area("Analysis Report", analysis, height=400)
+        
+        # Option to get AI analysis of BPM data
+        col_analysis1, col_analysis2 = st.columns([3, 1])
+        
+        with col_analysis1:
+            analysis = analyze_bpm_data(bpm_data, selected_person)
+            st.text_area("Analysis Report", analysis, height=400)
+        
+        with col_analysis2:
+            st.write("**AI Enhanced Analysis**")
+            model_for_analysis = st.selectbox(
+                "Choose AI Model for Enhanced Analysis:",
+                options=["gemini", "deepseek"] if ollama_available else ["gemini"],
+                format_func=lambda x: "Google Gemini" if x == "gemini" else "Deepseek-R1 32B",
+                key="bpm_analysis_model"
+            )
+            
+            if st.button("🤖 Get AI Analysis"):
+                deduct_coin()  # Deduct coin for AI analysis
+                
+                # Prepare bpm data summary for AI
+                bpm_summary = f"""
+                bpm Data Summary:
+                - Total records: {len(display_data)}
+                - Average BPM: {avg_bpm:.1f}
+                - Latest BPM: {latest_bpm}
+                - Person: {selected_person}
+                - Time range: {display_data[0]['timestamp']} to {display_data[-1]['timestamp']}
+                - BPM values: {[item['bpm'] for item in display_data[-10:]]}  # Last 10 values
+                """
+                
+                ai_prompt = f"""
+                As a medical AI assistant, please analyze this BPM (heart rate) data and provide insights:
+                
+                {bpm_summary}
+                
+                Please provide:
+                1. Medical assessment of the BPM patterns
+                2. Potential health concerns or positive indicators
+                3. Recommendations for the patient
+                4. When to seek medical attention
+                5. Lifestyle factors that might influence these readings
+                
+                Be professional and medical in your analysis.
+                """
+                
+                if model_for_analysis == "deepseek":
+                    with st.spinner("Deepseek-R1 is analyzing BPM data..."):
+                        ai_analysis = call_ollama(ai_prompt)
+                else:
+                    ai_analysis = get_gemini_response(ai_prompt)
+                
+                st.info(f"**AI Analysis ({model_for_analysis.upper()}):**\n\n{ai_analysis}")
         
         # Data table
-        # st.subheader("📊 Recent BPM Data")
-        # if len(display_data) > 10:
-        #     recent_data = display_data[-10:]
-        # else:
-        #     recent_data = display_data
+        st.subheader("📊 Recent BPM Data")
+        if len(display_data) > 10:
+            recent_data = display_data[-10:]
+        else:
+            recent_data = display_data
         
-        # df_display = pd.DataFrame([{
-        #     'Person': item.get('person', 'unknown').title(),
-        #     'Timestamp': item['timestamp'],
-        #     'BPM': item['bpm'],
-        #     'Status': 'Normal' if 60 <= item['bmp'] <= 100 else 'Abnormal'
-        # } for item in reversed(recent_data)])
+        df_display = pd.DataFrame([{
+            'Person': item.get('person', 'unknown').title(),
+            'Timestamp': item['timestamp'],
+            'BPM': item['bpm'],
+            'Status': 'Normal' if 60 <= item['bpm'] <= 100 else 'Abnormal'
+        } for item in reversed(recent_data)])
         
-        # st.dataframe(df_display, use_container_width=True)
+        st.dataframe(df_display, use_container_width=True)
         
         # Export functionality
         if st.button("📄 Export BPM Data"):
@@ -681,14 +925,14 @@ elif user_picked == 'BPM Monitor':
                 'timestamp': item['timestamp'],
                 'datetime': item['datetime'],
                 'bpm': item['bpm']
-            } for item in bmp_data])
+            } for item in bpm_data])
             
             csv = df_export.to_csv(index=False)
             filename_suffix = f"_{selected_person}" if selected_person != 'all' else "_all_persons"
             st.download_button(
                 label="Download CSV",
                 data=csv,
-                file_name=f"bmp_data{filename_suffix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                file_name=f"bpm_data{filename_suffix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv"
             )
         
@@ -701,13 +945,13 @@ elif user_picked == 'BPM Monitor':
         st.markdown("*Data automatically refreshes every minute*")
         
         # Health alerts
-        if latest_bmp < 60 or latest_bmp > 100:
-            if latest_bmp < 60:
-                st.error(f"⚠️ Alert: Low heart rate detected ({latest_bmp} bpm) - Consider medical consultation")
+        if latest_bpm < 60 or latest_bpm > 100:
+            if latest_bpm < 60:
+                st.error(f"⚠️ Alert: Low heart rate detected ({latest_bpm} bpm) - Consider medical consultation")
             else:
-                st.error(f"⚠️ Alert: High heart rate detected ({latest_bmp} bpm) - Consider medical consultation")
+                st.error(f"⚠️ Alert: High heart rate detected ({latest_bpm} bpm) - Consider medical consultation")
         else:
-            st.success(f"✅ Current heart rate is normal ({latest_bmp} bpm)")
+            st.success(f"✅ Current heart rate is normal ({latest_bpm} bpm)")
 
 # Footer
 st.markdown("---")
