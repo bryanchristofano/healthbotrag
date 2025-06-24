@@ -1,0 +1,22 @@
+#buat virtual environment
+python -m venv <nama virtual environment>
+
+#aktifkan virtual environment
+source <nama virtual environment>/bin/activate
+
+# install yang perlu
+pip install -r requirements.txt
+
+# buka terminal baru lalu generate reverse proxy hanya untuk saat pertama kali
+reverse-proxy-publish generate
+
+# cek file services.toml, edit port number yang digunakan dan sesuaikan
+
+# misal jalankan streamlit di port yang anda pilih
+streamlit run qachat.py --server.port=<port anda> --server.address=127.0.0.2
+
+# lalu buka terminal baru dan apply reverse proxy
+reverse-proxy-publish apply
+
+# akan muncul URL yg bisa diclick dijalankan secara global. jalankan pada browser 
+# misal https://u1002-streamlit.gpu3.petra.ac.id/
