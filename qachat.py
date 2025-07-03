@@ -117,12 +117,10 @@ def load_pdfs_from_folder(folder_path):
     
     return knowledge_base
 
-# PERBAIKAN UTAMA: Fungsi untuk membaca struktur JSON dengan multi-person
-@st.cache_data(ttl=60)  # Cache for 1 minute
+@st.cache_data(ttl=60)
 def get_bpm_history():
     """Fetch BPM history from Firebase using REST API - supports multi-person structure"""
     try:
-        # Gunakan REST API konsisten dengan initialize_firebase()
         url = "https://healthbot-ceb8d-default-rtdb.asia-southeast1.firebasedatabase.app/bpm_history.json"
         response = requests.get(url, timeout=10)
         
@@ -130,18 +128,13 @@ def get_bpm_history():
             bpm_data = response.json()
             
             if bpm_data:
-                # Handle struktur JSON baru dengan multi-person
                 if isinstance(bpm_data, dict):
-                    # Check if this is the new structure with person names as keys
                     person_keys = list(bpm_data.keys())
                     if person_keys and isinstance(bpm_data[person_keys[0]], dict):
-                        # New structure: {"glenn": {"timestamp": bpm}, "bryan": {...}}
                         return parse_multi_person_bpm_data(bpm_data)
                     else:
-                        # Old structure: {"timestamp": bpm}
                         return parse_single_bpm_data(bpm_data)
                 elif isinstance(bpm_data, list):
-                    # Array structure: [{"timestamp": "...", "bpm": ...}]
                     return parse_array_bpm_data(bpm_data)
             
             return []
@@ -210,7 +203,6 @@ def parse_array_bpm_data(bpm_data):
     bpm_list = []
     for item in bpm_data:
         try:
-            # Format timestamp: "2025-05-20 15:56:14"
             dt = datetime.strptime(item['timestamp'], "%Y-%m-%d %H:%M:%S")
             bpm_list.append({
                 'timestamp': item['timestamp'],
@@ -225,7 +217,6 @@ def parse_array_bpm_data(bpm_data):
     bpm_list.sort(key=lambda x: x['datetime'])
     return bpm_list
 
-# Analyze BPM data - DIPERBAIKI untuk mendukung multi-person
 def analyze_bpm_data(bpm_data, selected_person=None):
     """Analyze BPM data and generate insights - supports multi-person analysis"""
     if not bpm_data:
@@ -330,7 +321,7 @@ def analyze_bpm_data(bpm_data, selected_person=None):
     
     return analysis
 
-# Generate response using the selected model - MODIFIED for model selection
+# Generate response using the selected model
 def generate_response(input_text, knowledge_base, chat_history, bpm_data=None, selected_model="gemini"):
     knowledge_summary = " ".join(knowledge_base)
     
@@ -388,7 +379,6 @@ def gemini_vision_response(model, prompt, image, knowledge_base):
     response = model.generate_content([full_prompt, image])
     return response.text
 
-# Create bpm visualization - DIPERBAIKI untuk multi-person
 def create_bpm_chart(bpm_data, selected_person=None):
     """Create BPM trend chart - supports multi-person visualization"""
     if not bpm_data:
